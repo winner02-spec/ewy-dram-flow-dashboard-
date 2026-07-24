@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>EWY·DRAM 발행좌수·자금흐름 대시보드</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#14181f;--muted:#5b6472;--line:#e6e9ef;--up:#e5484d;--down:#1f883d;--accent:#3b6ef5;--warn:#c47f00;}
+  @media(prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#161b22;--ink:#e6edf3;--muted:#8b949e;--line:#232a33;--up:#ff6b6b;--down:#3fb950;--accent:#589bff;--warn:#e3b341;}}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Apple SD Gothic Neo","AppleGothic",-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
+  header h1{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px}
+  .val{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin:12px 0;font-size:12px;color:var(--muted)}
+  .badge{padding:1px 9px;border-radius:20px;font-weight:700;font-size:12px}
+  .badge.normal{background:rgba(31,136,61,.12);color:var(--down)}.badge.stale,.badge.estimated{background:rgba(196,127,0,.15);color:var(--warn)}
+  .badge.needs_review,.badge.failed{background:rgba(229,72,77,.14);color:var(--up)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}@media(max-width:640px){.cards{grid-template-columns:1fr}}
+  .fcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px}
+  .fcard h3{margin:0 0 2px;font-size:16px}.fcard .iss{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .cell .l{font-size:11px;color:var(--muted)}.cell .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 4px}.hint{color:var(--muted);font-size:12px;margin:2px 0 12px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;background:transparent;color:var(--muted);padding:6px 10px;font-size:12px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#fff}
+  .dates{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+  .dates input{background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:5px 7px;font-size:12px;font-family:inherit}
+  .chart{width:100%;overflow-x:auto;position:relative}svg{display:block;max-width:100%}
+  .legend{display:flex;gap:14px;margin-top:8px;font-size:12px;color:var(--muted)}.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:600}th:first-child,td:first-child{text-align:left}
+  .up{color:var(--up)}.down{color:var(--down)}.tbl-wrap{overflow:auto;max-height:420px}
+  details{border:1px solid var(--line);border-radius:10px;padding:0 12px}summary{cursor:pointer;padding:11px 0;font-weight:600}
+  .btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12px;opacity:0;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap;z-index:5}
+  footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}a{color:var(--accent)}
+</style></head><body>
+<div class="wrap">
+  <header><h1>📊 EWY·DRAM 발행좌수·자금흐름 대시보드</h1>
+    <div class="sub">AUM 증가가 '실제 자금유입'인지 '가격상승'인지 분해 · EWY(iShares) vs DRAM(Roundhill)</div></header>
+  <div class="val" id="val"></div>
+  <div class="cards" id="cards"></div>
+  <div class="card">
+    <h2>추이 차트</h2>
+    <p class="hint">두 ETF 좌수 규모가 달라 기본은 시작일=100 지수화 비교. 마우스(터치) 시 상세.</p>
+    <div class="controls"><div class="seg" id="view"></div><div class="seg" id="period"></div>
+      <span class="dates">기간 <input type="date" id="start"> ~ <input type="date" id="end"></span></div>
+    <div class="chart"><svg id="chart" viewBox="0 0 960 360" preserveAspectRatio="xMidYMid meet"></svg><div class="tip" id="tip"></div></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="card">
+    <details id="detBox"><summary>일자별 상세 <span id="detCount" style="color:var(--muted);font-weight:400"></span> · <button class="btn" id="csvBtn" onclick="downloadCSV(event)">CSV 다운로드</button></summary>
+      <div class="controls"><div class="seg" id="detTicker"></div></div>
+      <div class="tbl-wrap"><table id="detTbl"><thead><tr>
+        <th>날짜</th><th>발행좌수</th><th>좌수증감</th><th>추정순유입</th><th>가격효과</th><th>AUM증감</th><th>NAV</th><th>AUM</th><th>품질</th>
+      </tr></thead><tbody></tbody></table></div>
+    </details>
+  </div>
+  <footer>자료: yfinance(baseline)·iShares/Roundhill 공식(업그레이드 예정) · 매 거래일 자동 축적 · <span id="gen"></span> 생성 · <a href="https://winner02-spec.github.io/ewy-dram-flow-dashboard-/">공유 링크</a></footer>
+</div>
+<script>
+const DATA={"as_of": "2026-07-23", "generated": "2026-07-24 14:40", "validation": {"overall": "estimated", "warnings": ["DRAM: 발행좌수 추정값(aum/nav) 사용"], "by_ticker_dates": {"EWY": "2026-07-23", "DRAM": "2026-07-23"}}, "funds": [{"ticker": "EWY", "name": "iShares MSCI South Korea ETF", "issuer": "iShares", "color": "#3b6ef5", "inception": "2000-05-12"}, {"ticker": "DRAM", "name": "Roundhill Memory ETF", "issuer": "Roundhill", "color": "#e08600", "inception": "2026-04-02"}], "series": {"EWY": [{"date": "2026-07-23", "shares": 75600000.0, "nav": 169.6531, "close": 173.86, "aum": 12825772848, "premium": 2.48, "quality": "normal", "dshare": null, "flow": null, "price_effect": null, "aum_change": null, "residual": null}], "DRAM": [{"date": "2026-07-23", "shares": 452879246.0, "nav": 57.2134, "close": 58.3, "aum": 25910761453, "premium": 1.899, "quality": "estimated", "dshare": null, "flow": null, "price_effect": null, "aum_change": null, "residual": null}]}, "latest": {"EWY": {"shares": 75600000.0, "aum": 12825772848, "nav": 169.6531, "premium": 2.48, "date": "2026-07-23", "quality": "normal", "d1": null, "d3": null, "d5": null, "flow5": 0, "nav_chg_pct": null}, "DRAM": {"shares": 452879246.0, "aum": 25910761453, "nav": 57.2134, "premium": 1.899, "date": "2026-07-23", "quality": "estimated", "d1": null, "d3": null, "d5": null, "flow5": 0, "nav_chg_pct": null}}};
+const $=s=>document.querySelector(s);const NS="http://www.w3.org/2000/svg";
+const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const fmt=(n,d=0)=>n==null?"—":Number(n).toLocaleString("ko-KR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const sgn=(n,d=0)=>n==null?"—":(n>=0?"+":"")+fmt(n,d);
+const money=v=>v==null?"—":(Math.abs(v)>=1e8?(v/1e8).toFixed(2)+"억$":Math.abs(v)>=1e4?(v/1e4).toFixed(0)+"만$":fmt(v));
+const TK=DATA.funds.map(f=>f.ticker);const COL=Object.fromEntries(DATA.funds.map(f=>[f.ticker,f.color]));
+let view="index",period="ALL",pstart=null,pend=null,detTk=TK[0];
+
+function validation(){const v=DATA.validation;const b=$("#val");
+  b.innerHTML=`기준일 <b style="color:var(--ink)">${DATA.as_of||"—"}</b> · 상태 <span class="badge ${v.overall}">${v.overall}</span>`
+    +(v.warnings&&v.warnings.length?` · <span style="color:var(--warn)">⚠️ ${v.warnings.join(" / ")}</span>`:"");}
+function cards(){const L=DATA.latest;$("#cards").innerHTML=DATA.funds.map(f=>{const m=L[f.ticker];if(!m)return `<div class="fcard"><h3>${f.ticker}</h3><div class="iss">데이터 없음</div></div>`;
+  const c=x=>x==null?"":(x>=0?"up":"down");
+  return `<div class="fcard"><h3 style="color:${f.color}">${f.ticker}</h3><div class="iss">${f.name} · 기준일 ${m.date} · <span class="badge ${m.quality==='normal'?'normal':m.quality}">${m.quality}</span></div>
+   <div class="grid">
+    <div class="cell"><div class="l">현재 발행좌수</div><div class="v">${fmt(m.shares)}</div></div>
+    <div class="cell"><div class="l">현재 AUM</div><div class="v">${money(m.aum)}</div></div>
+    <div class="cell"><div class="l">NAV 등락률</div><div class="v ${c(m.nav_chg_pct)}">${sgn(m.nav_chg_pct,2)}%</div></div>
+    <div class="cell"><div class="l">1일 좌수증감</div><div class="v ${c(m.d1)}">${sgn(m.d1)}</div></div>
+    <div class="cell"><div class="l">3일 좌수증감</div><div class="v ${c(m.d3)}">${sgn(m.d3)}</div></div>
+    <div class="cell"><div class="l">5일 좌수증감</div><div class="v ${c(m.d5)}">${sgn(m.d5)}</div></div>
+    <div class="cell" style="grid-column:span 3"><div class="l">5일 추정 순유입</div><div class="v ${c(m.flow5)}">${money(m.flow5)}</div></div>
+   </div></div>`;}).join("");}
+
+function allDates(){const s=new Set();TK.forEach(t=>(DATA.series[t]||[]).forEach(r=>s.add(r.date)));return[...s].sort();}
+function windowDates(){const ds=allDates();if(!ds.length)return[];let s=pstart,e=pend||ds[ds.length-1];
+  if(!s){if(period==="ALL")s=ds[0];else{const days={"5D":8,"1M":31,"3M":93,"6M":186}[period];const d=new Date(ds[ds.length-1]);d.setDate(d.getDate()-days);s=d.toISOString().slice(0,10);}}
+  return ds.filter(d=>d>=s&&d<=e);}
+
+function chart(){
+  const svg=$("#chart"),W=960,H=360,m={t:14,r:16,b:26,l:60};svg.innerHTML="";
+  const dates=windowDates();if(dates.length<1){svg.innerHTML='<text x="480" y="180" text-anchor="middle" fill="#888">데이터 쌓이는 중</text>';legend();return;}
+  const dset=new Set(dates);
+  // 시리즈 구성
+  let sers=[],bars=false,zeroline=false;
+  const pick=(t)=>((DATA.series[t]||[]).filter(r=>dset.has(r.date)));
+  if(view==="index"){zeroline=false;
+    sers=TK.map(t=>{const rs=pick(t).filter(r=>r.shares!=null);const base=rs.length?rs[0].shares:1;
+      return {t,color:COL[t],pts:rs.map(r=>[r.date,r.shares/base*100])};});}
+  else if(view==="cumflow"){zeroline=true;
+    sers=TK.map(t=>{let c=0;const pts=pick(t).map(r=>{if(r.flow!=null)c+=r.flow;return[r.date,c/1e6];});return {t,color:COL[t],pts};});}
+  else if(view==="dchange"){bars=true;zeroline=true;
+    sers=TK.map(t=>({t,color:COL[t],pts:pick(t).map(r=>[r.date,r.dshare==null?0:r.dshare])}));}
+  else if(view==="decomp"){zeroline=true;const t=detTk;const rs=pick(t);
+    sers=[{t:t+" 순유입",color:"#1f883d",pts:rs.map(r=>[r.date,(r.flow||0)/1e6])},
+          {t:t+" 가격효과",color:"#8957e5",pts:rs.map(r=>[r.date,(r.price_effect||0)/1e6])},
+          {t:t+" AUM증감",color:"#8b93a1",pts:rs.map(r=>[r.date,(r.aum_change||0)/1e6])}];}
+  const xs=dates,n=xs.length;
+  let vals=sers.flatMap(s=>s.pts.map(p=>p[1]));if(zeroline)vals.push(0);
+  let mn=Math.min(...vals),mx=Math.max(...vals);if(mn===mx){mn-=1;mx+=1;}const pad=(mx-mn)*.08;mn-=pad;mx+=pad;
+  const X=i=>m.l+(n<=1?0:(i/(n-1))*(W-m.l-m.r)),Y=v=>m.t+(1-(v-mn)/(mx-mn))*(H-m.t-m.b);
+  const unit=view==="index"?"":(view==="dchange"?"":"백만$");
+  for(let g=0;g<=4;g++){const v=mn+(mx-mn)*g/4,y=Y(v);svg.appendChild(el("line",{x1:m.l,y1:y,x2:W-m.r,y2:y,stroke:"var(--line)"}));
+    const tx=el("text",{x:m.l-6,y:y+4,"text-anchor":"end",fill:"var(--muted)","font-size":11});tx.textContent=view==="index"?fmt(v,0):(Math.abs(v)>=1000?fmt(v/1000,0)+"k":fmt(v,0));svg.appendChild(tx);}
+  if(zeroline){const y0=Y(0);svg.appendChild(el("line",{x1:m.l,y1:y0,x2:W-m.r,y2:y0,stroke:"var(--muted)","stroke-dasharray":"4 3"}));}
+  const step=Math.max(1,Math.floor(n/6));for(let i=0;i<n;i+=step){const tx=el("text",{x:X(i),y:H-8,"text-anchor":"middle",fill:"var(--muted)","font-size":10});tx.textContent=xs[i].slice(5);svg.appendChild(tx);}
+  const idx=Object.fromEntries(xs.map((d,i)=>[d,i]));
+  if(bars){const bw=Math.max(1,(W-m.l-m.r)/n/ (sers.length+0.5));
+    sers.forEach((s,si)=>{const map=Object.fromEntries(s.pts);xs.forEach((d,i)=>{if(!(d in map))return;const v=map[d];
+      svg.appendChild(el("rect",{x:X(i)-bw*(sers.length/2)+si*bw,y:Math.min(Y(v),Y(0)),width:bw*0.9,height:Math.abs(Y(v)-Y(0)),fill:s.color,opacity:.85}));});});}
+  else sers.forEach(s=>{let d="",st=false;s.pts.forEach(p=>{if(p[0] in idx){d+=(st?"L":"M")+X(idx[p[0]])+","+Y(p[1]);st=true;}});
+    if(d)svg.appendChild(el("path",{d,fill:"none",stroke:s.color,"stroke-width":2,"stroke-linejoin":"round"}));});
+  // hover
+  const hl=el("line",{y1:m.t,y2:H-m.b,stroke:"var(--muted)","stroke-dasharray":"3 3",opacity:0});svg.appendChild(hl);
+  svg.onmousemove=svg.ontouchmove=ev=>{const rect=svg.getBoundingClientRect();const cx=((ev.touches?ev.touches[0].clientX:ev.clientX)-rect.left)/rect.width*W;
+    let i=Math.round((cx-m.l)/((W-m.l-m.r)/(n-1||1)));i=Math.max(0,Math.min(n-1,i));const d=xs[i];
+    hl.setAttribute("x1",X(i));hl.setAttribute("x2",X(i));hl.setAttribute("opacity",1);
+    let cum={};TK.forEach(t=>{cum[t]=0;(DATA.series[t]||[]).forEach(r=>{if(r.date<=d&&dset.has(r.date)&&r.dshare!=null)cum[t]+=r.dshare;});});
+    const rows=TK.map(t=>{const r=(DATA.series[t]||[]).find(x=>x.date===d);if(!r)return"";
+      return `<span style="color:${COL[t]}">${t}</span> 좌수 ${fmt(r.shares)} (${sgn(r.dshare)}) 누적 ${sgn(cum[t])}<br>&nbsp;&nbsp;순유입 ${money(r.flow)} · NAV ${fmt(r.nav,2)} · AUM ${money(r.aum)}`;}).join("<br>");
+    const tip=$("#tip");tip.innerHTML=`<b>${d}</b><br>${rows}`;tip.style.opacity=1;
+    const px=X(i)/W*rect.width;tip.style.left=Math.min(rect.width-230,Math.max(2,px+10))+"px";tip.style.top="6px";};
+  svg.onmouseleave=()=>{$("#tip").style.opacity=0;hl.setAttribute("opacity",0);};
+  legend();}
+function legend(){$("#legend").innerHTML=(view==="decomp"?[["순유입","#1f883d"],["가격효과","#8957e5"],["AUM증감","#8b93a1"]]
+  :DATA.funds.map(f=>[f.ticker,f.color])).map(([l,c])=>`<span><i style="background:${c}"></i>${l}</span>`).join("");}
+
+function detail(){const rs=DATA.series[detTk]||[];$("#detCount").textContent=`(${detTk} · ${rs.length}일)`;
+  const c=x=>x==null?"":(x>=0?"up":"down");
+  $("#detTbl tbody").innerHTML=rs.slice().reverse().map(r=>`<tr><td>${r.date}</td><td>${fmt(r.shares)}</td>
+    <td class="${c(r.dshare)}">${sgn(r.dshare)}</td><td class="${c(r.flow)}">${money(r.flow)}</td>
+    <td class="${c(r.price_effect)}">${money(r.price_effect)}</td><td class="${c(r.aum_change)}">${money(r.aum_change)}</td>
+    <td>${fmt(r.nav,2)}</td><td>${money(r.aum)}</td><td>${r.quality}</td></tr>`).join("");}
+function downloadCSV(ev){if(ev)ev.preventDefault();const cols=["date","ticker","nav","close","aum","shares","dshare","flow","price_effect","aum_change","residual","premium","quality"];
+  let out=cols.join(",")+"\n";TK.forEach(t=>(DATA.series[t]||[]).forEach(r=>{out+=[r.date,t,r.nav,r.close,r.aum,r.shares,r.dshare,r.flow,r.price_effect,r.aum_change,r.residual,r.premium,r.quality].map(x=>x==null?"":x).join(",")+"\n";}));
+  const blob=new Blob([out],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ewy_dram_flows.csv";a.click();}
+
+function seg(id,opts,cur,cb){const box=$(id);box.innerHTML="";opts.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;if(v===cur)b.className="on";
+  b.onclick=()=>{cb(v);[...box.children].forEach(c=>c.className="");b.className="on";};box.appendChild(b);});}
+function init(){$("#gen").textContent=DATA.generated||"";validation();cards();detail();
+  seg("#view",[["index","지수화 좌수"],["dchange","일별 좌수증감"],["cumflow","누적 순유입"],["decomp","AUM 분해"]],view,v=>{view=v;chart();});
+  seg("#period",[["5D","5일"],["1M","1개월"],["3M","3개월"],["6M","6개월"],["ALL","전체"]],period,v=>{period=v;pstart=pend=null;const s=$("#start"),e=$("#end");s.value="";e.value="";chart();});
+  seg("#detTicker",DATA.funds.map(f=>[f.ticker,f.ticker]),detTk,v=>{detTk=v;detail();chart();});
+  const ds=allDates(),s=$("#start"),e=$("#end");if(ds.length){s.min=e.min=ds[0];s.max=e.max=ds[ds.length-1];}
+  s.onchange=()=>{pstart=s.value||null;pend=e.value||(ds.length?ds[ds.length-1]:null);[...$("#period").children].forEach(c=>c.className="");chart();};
+  e.onchange=()=>{pend=e.value||null;pstart=s.value||(ds.length?ds[0]:null);[...$("#period").children].forEach(c=>c.className="");chart();};
+  chart();}
+init();
+</script></body></html>
